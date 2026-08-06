@@ -1,4 +1,4 @@
-# ClearFrame AI — MVP v0.1
+# ClearFrame AI — MVP v0.1.1
 
 Web/PWA สำหรับเพิ่ม Resolution และความคมชัดของภาพ โดยออกแบบตามหลัก:
 
@@ -16,11 +16,12 @@ Web/PWA สำหรับเพิ่ม Resolution และความคม
 3. AI Upscale 2x หรือ 4x ผ่าน Cloudflare Images `upscale: "generate"` (ESRGAN)
 4. Controlled sharpen / contrast / saturation
 5. Before–After slider
-6. Download เป็น WebP
+6. เลือก Download เป็น JPG, PNG หรือ WebP
 7. Local browser fallback สำหรับทดสอบ UX เมื่อ Images binding ยังไม่พร้อม
 8. PWA shell และ responsive mobile layout
 9. `/api/health` และ `/api/enhance`
 10. Input validation สูงสุด 20 MB
+11. Reset flow และแสดงขนาดไฟล์ผลลัพธ์
 
 > หมายเหตุ: Face mode ใน v0.1 เป็นการตั้งค่าที่ลด over-sharpen สำหรับใบหน้า ยังไม่ใช่ dedicated face-restoration model เช่น GFPGAN/CodeFormer
 
@@ -83,8 +84,9 @@ curl -X POST \
   -F "mode=photo" \
   -F "scale=2" \
   -F "strength=natural" \
+  -F "format=jpg" \
   https://<worker>.<subdomain>.workers.dev/api/enhance \
-  --output enhanced.webp
+  --output enhanced.jpg
 ```
 
 ## Current technical basis
@@ -115,3 +117,10 @@ Official references:
 - [x] Code can deploy via API token without OAuth.
 - [ ] Production deployment verified on the user's Cloudflare account.
 - [ ] AI output quality benchmarked against a controlled test set.
+
+## v0.1.1 Output Format Policy
+
+- JPG: ค่าเริ่มต้น เหมาะกับภาพถ่ายทั่วไป และเติมพื้นหลังสีขาวเมื่อภาพต้นฉบับมี transparency
+- PNG: เหมาะกับภาพที่ต้องการ lossless output หรือคง transparency
+- WebP: เหมาะกับการใช้งานบนเว็บและไฟล์ขนาดเล็ก
+- เมื่อเปลี่ยน Mode, Scale, Strength หรือ Format หลัง Enhance ระบบจะบังคับให้ประมวลผลใหม่ เพื่อไม่ให้ Download ผลลัพธ์คนละค่ากับหน้าจอ

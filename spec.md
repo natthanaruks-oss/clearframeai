@@ -1,6 +1,6 @@
 # ClearFrame AI — Product & Technical Specification
 
-**Version:** 0.1  
+**Version:** 0.1.1  
 **Status:** Build-ready MVP  
 **Product stance:** Truth-conscious image enhancement, not forensic reconstruction
 
@@ -32,7 +32,7 @@
 - Natural / Clear / Maximum
 - Auto / Photo / Face / Document preset
 - Browser preview
-- WebP download
+- JPG / PNG / WebP download
 - No persistence
 - Mobile responsive PWA
 - API-token-only deployment
@@ -74,7 +74,10 @@
 
 ### FR-04 Download
 
-- Download result with a non-destructive filename
+- User selects JPG, PNG or WebP before enhancement
+- Download result with a non-destructive filename and correct MIME/extension
+- JPG uses an opaque white background for transparent input pixels
+- PNG and WebP preserve transparency where supported
 - Do not overwrite the original
 
 ### FR-05 Failure Handling

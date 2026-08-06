@@ -95,6 +95,16 @@
             </div>
           </fieldset>
 
+          <fieldset>
+            <legend>รูปแบบไฟล์ Download</legend>
+            <div class="segmented three">
+              <label><input type="radio" name="format" value="jpg" checked /><span>JPG</span></label>
+              <label><input type="radio" name="format" value="png" /><span>PNG</span></label>
+              <label><input type="radio" name="format" value="webp" /><span>WebP</span></label>
+            </div>
+            <p class="field-hint">JPG สำหรับภาพทั่วไป · PNG สำหรับคุณภาพและความโปร่งใส · WebP สำหรับไฟล์เว็บขนาดเล็ก</p>
+          </fieldset>
+
           <button id="enhanceButton" class="primary-button" type="button" disabled>
             <span id="enhanceButtonLabel">Enhance Image</span>
           </button>
@@ -117,9 +127,12 @@
                 <strong id="previewTitle">Before / After</strong>
                 <span id="engineLabel"></span>
               </div>
-              <button id="downloadButton" class="secondary-button" type="button" disabled>
-                Download
-              </button>
+              <div class="toolbar-actions">
+                <button id="resetButton" class="tertiary-button" type="button" disabled>เริ่มใหม่</button>
+                <button id="downloadButton" class="secondary-button" type="button" disabled>
+                  Download JPG
+                </button>
+              </div>
             </div>
 
             <div id="compareFrame" class="compare-frame">
@@ -171,7 +184,7 @@
     </main>
 
     <footer>
-      <span>ClearFrame AI · MVP v0.1</span>
+      <span>ClearFrame AI · MVP v0.1.1</span>
       <span>Original image remains the source of truth.</span>
     </footer>
 

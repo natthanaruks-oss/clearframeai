@@ -28,3 +28,17 @@ The fastest credible path is to use an existing AI upscaler rather than train a 
 3. Compare Natural/Clear/Maximum for artifacts.
 4. Add dedicated model only if benchmark proves a real gap.
 5. Add batch and monetization only after quality and cost are measured.
+
+## 2026-08-06 — v0.1.1 Output Formats
+
+### What happened
+
+Added selectable JPG, PNG and WebP output while keeping the product scope limited to image clarity only. Added dynamic MIME/extension handling, transparent output for PNG/WebP, white background for JPG, result file size, reset flow and cache-version update.
+
+### Why
+
+Users need common downloadable formats, and a hardcoded WebP output creates friction outside web workflows.
+
+### Verification
+
+Static syntax and project checks cover all three formats and critical frontend/API hooks. Production deployment and real-image output still require execution in the user's Cloudflare account.

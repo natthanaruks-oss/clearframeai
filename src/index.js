@@ -10,6 +10,12 @@ const ALLOWED_TYPES = new Set([
   "image/heic",
 ]);
 
+const OUTPUT_FORMATS = {
+  jpg: { mime: "image/jpeg", extension: "jpg", supportsQuality: true },
+  png: { mime: "image/png", extension: "png", supportsQuality: false },
+  webp: { mime: "image/webp", extension: "webp", supportsQuality: true },
+};
+
 const STRENGTH_PRESETS = {
   natural: { sharpen: 0.8, contrast: 1.02, saturation: 1.0, quality: 88 },
   clear: { sharpen: 1.5, contrast: 1.06, saturation: 1.0, quality: 91 },
@@ -68,10 +74,11 @@ function calculateTargetSize(width, height, scale) {
   };
 }
 
-function buildTransform(mode, strength, width, height, scale) {
+function buildTransform(mode, strength, width, height, scale, outputFormat) {
   const base = STRENGTH_PRESETS[strength];
   const modeAdjustment = MODE_ADJUSTMENTS[mode];
   const target = calculateTargetSize(width, height, scale);
+  const preserveAlpha = outputFormat === "png" || outputFormat === "webp";
 
   return {
     target,
@@ -83,6 +90,7 @@ function buildTransform(mode, strength, width, height, scale) {
       sharpen: clamp(base.sharpen + modeAdjustment.sharpen, 0, 10),
       contrast: clamp(base.contrast + modeAdjustment.contrast, 0.5, 2),
       saturation: clamp(base.saturation + modeAdjustment.saturation, 0, 2),
+      background: preserveAlpha ? "rgba(0,0,0,0)" : "white",
       anim: false,
     },
     quality: base.quality,
@@ -133,7 +141,13 @@ async function enhance(request, env) {
     Object.keys(STRENGTH_PRESETS),
     "natural",
   );
+  const outputFormat = safeEnum(
+    String(form.get("format") || ""),
+    Object.keys(OUTPUT_FORMATS),
+    "jpg",
+  );
   const scale = Number(form.get("scale")) === 4 ? 4 : 2;
+  const format = OUTPUT_FORMATS[outputFormat];
 
   let info;
   try {
@@ -162,17 +176,21 @@ async function enhance(request, env) {
     );
   }
 
-  const plan = buildTransform(mode, strength, width, height, scale);
+  const plan = buildTransform(mode, strength, width, height, scale, outputFormat);
+  const outputOptions = {
+    format: format.mime,
+    anim: false,
+  };
+
+  if (format.supportsQuality) {
+    outputOptions.quality = plan.quality;
+  }
 
   try {
     const transformed = (
       await env.IMAGES.input(file.stream())
         .transform(plan.options)
-        .output({
-          format: "image/webp",
-          quality: plan.quality,
-          anim: false,
-        })
+        .output(outputOptions)
     ).response();
 
     if (!transformed.ok) {
@@ -191,14 +209,15 @@ async function enhance(request, env) {
     return new Response(transformed.body, {
       status: 200,
       headers: {
-        "content-type": transformed.headers.get("content-type") || "image/webp",
+        "content-type": transformed.headers.get("content-type") || format.mime,
         "cache-control": "no-store",
-        "content-disposition": `inline; filename="clearframe-${Date.now()}.webp"`,
+        "content-disposition": `inline; filename="clearframe-${Date.now()}.${format.extension}"`,
         "x-clearframe-engine": "cloudflare-images-esrgan",
         "x-clearframe-original": `${width}x${height}`,
         "x-clearframe-output": `${plan.target.width}x${plan.target.height}`,
         "x-clearframe-mode": mode,
         "x-clearframe-strength": strength,
+        "x-clearframe-format": outputFormat,
         "x-content-type-options": "nosniff",
       },
     });
@@ -222,8 +241,9 @@ export default {
       return json({
         ok: true,
         app: "ClearFrame AI",
-        version: "0.1.0",
+        version: "0.1.1",
         imagesBinding: Boolean(env.IMAGES),
+        outputFormats: Object.keys(OUTPUT_FORMATS),
       });
     }
 
