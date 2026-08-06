@@ -1,0 +1,16 @@
+{
+  "name": "clearframe-ai",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Privacy-first AI image clarity MVP on Cloudflare Workers and Images.",
+  "scripts": {
+    "dev": "wrangler dev",
+    "dev:remote": "wrangler dev --remote",
+    "deploy": "wrangler deploy",
+    "test": "node scripts/check.mjs"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}
