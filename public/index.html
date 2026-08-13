@@ -5,37 +5,42 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       name="description"
-      content="ClearFrame AI — เพิ่มความละเอียดและความคมชัดของภาพแบบไม่เก็บไฟล์ถาวร"
+      content="ClearFrame AI — ทำภาพให้ชัดขึ้นด้วย AI โดยรักษาสีต้นฉบับและไม่เก็บไฟล์ถาวร"
     />
-    <meta name="theme-color" content="#111827" />
+    <meta name="theme-color" content="#f7f8fa" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/styles.css?v=0.1.3" />
     <title>ClearFrame AI</title>
   </head>
   <body>
     <header class="site-header">
       <a class="brand" href="/" aria-label="ClearFrame AI Home">
-        <span class="brand-mark">CF</span>
-        <span>
+        <span class="brand-mark" aria-hidden="true">CF</span>
+        <span class="brand-copy">
           <strong>ClearFrame</strong>
-          <small>AI Image Clarity</small>
+          <small>AI image clarity</small>
         </span>
       </a>
-      <span class="privacy-pill">ไม่เก็บภาพถาวร</span>
+      <div class="privacy-pill" title="MVP นี้ไม่สร้างคลังภาพหรือประวัติผู้ใช้">
+        <span class="privacy-dot" aria-hidden="true"></span>
+        ไม่เก็บภาพถาวร
+      </div>
     </header>
 
     <main class="page-shell">
-      <section class="hero">
-        <p class="eyebrow">IMAGE ENHANCEMENT MVP</p>
-        <h1>เปลี่ยนภาพไม่ชัด<br />ให้ดูคมขึ้นอย่างเป็นธรรมชาติ</h1>
+      <section class="hero" aria-labelledby="heroTitle">
+        <div>
+          <p class="eyebrow">CLEARFRAME AI</p>
+          <h1 id="heroTitle">ทำภาพให้ชัดขึ้น<br class="desktop-break" /> โดยไม่แต่งสีเกินจริง</h1>
+        </div>
         <p class="hero-copy">
-          AI Upscale 2x/4x พร้อมควบคุมความคมชัดสำหรับภาพทั่วไป ใบหน้า และเอกสาร
+          อัปโหลดภาพ เลือกระดับที่ต้องการ แล้วเปรียบเทียบ Before / After ได้ทันที
         </p>
       </section>
 
-      <section class="workspace" aria-label="Image enhancement workspace">
-        <div class="panel controls-panel">
+      <section class="studio" aria-label="Image enhancement workspace">
+        <aside class="controls-panel" aria-label="Enhancement controls">
           <div
             id="dropZone"
             class="drop-zone"
@@ -49,86 +54,116 @@
               accept="image/jpeg,image/png,image/webp,image/gif,image/heic"
               hidden
             />
-            <div class="upload-icon">＋</div>
-            <strong>ลากภาพมาวาง หรือคลิกเพื่อเลือก</strong>
-            <span>JPEG, PNG, WebP, GIF, HEIC · สูงสุด 20 MB</span>
+            <span class="upload-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" role="img" aria-hidden="true">
+                <path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M5 14.5V18a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-3.5" />
+              </svg>
+            </span>
+            <span class="drop-copy">
+              <strong>เลือกภาพ</strong>
+              <small>ลากมาวางได้ · สูงสุด 20 MB</small>
+            </span>
           </div>
 
           <div id="fileSummary" class="file-summary hidden">
-            <div>
+            <div class="file-copy">
               <strong id="fileName"></strong>
               <span id="fileMeta"></span>
             </div>
-            <button id="changeImageButton" class="text-button" type="button">เปลี่ยนภาพ</button>
+            <button id="changeImageButton" class="icon-button" type="button" aria-label="เปลี่ยนภาพ">
+              เปลี่ยน
+            </button>
           </div>
 
-          <fieldset>
-            <legend>ประเภทภาพ</legend>
-            <div class="segmented four">
-              <label><input type="radio" name="mode" value="auto" checked /><span>Auto</span></label>
-              <label><input type="radio" name="mode" value="photo" /><span>Photo</span></label>
-              <label><input type="radio" name="mode" value="face" /><span>Face</span></label>
-              <label><input type="radio" name="mode" value="document" /><span>Document</span></label>
-            </div>
-          </fieldset>
+          <div class="control-stack">
+            <fieldset>
+              <div class="field-heading">
+                <legend>ประเภทภาพ</legend>
+                <span>เลือกให้ใกล้กับต้นฉบับ</span>
+              </div>
+              <div class="segmented four compact">
+                <label><input type="radio" name="mode" value="auto" checked /><span>General</span></label>
+                <label><input type="radio" name="mode" value="photo" /><span>Photo</span></label>
+                <label><input type="radio" name="mode" value="face" /><span>Face</span></label>
+                <label><input type="radio" name="mode" value="document" /><span>Document</span></label>
+              </div>
+            </fieldset>
 
-          <fieldset>
-            <legend>ขนาดผลลัพธ์</legend>
-            <div class="segmented">
-              <label><input type="radio" name="scale" value="2" checked /><span>2x</span></label>
-              <label><input type="radio" name="scale" value="4" /><span>4x</span></label>
-            </div>
-          </fieldset>
+            <fieldset>
+              <div class="field-heading">
+                <legend>ความคม</legend>
+                <span>เริ่มที่ Natural</span>
+              </div>
+              <div class="segmented three compact">
+                <label><input type="radio" name="strength" value="natural" checked /><span>Natural</span></label>
+                <label><input type="radio" name="strength" value="clear" /><span>Clear</span></label>
+                <label><input type="radio" name="strength" value="maximum" /><span>Max</span></label>
+              </div>
+            </fieldset>
 
-          <fieldset>
-            <legend>ระดับความคม</legend>
-            <div class="segmented three">
-              <label>
-                <input type="radio" name="strength" value="natural" checked />
-                <span>Natural</span>
-              </label>
-              <label><input type="radio" name="strength" value="clear" /><span>Clear</span></label>
-              <label>
-                <input type="radio" name="strength" value="maximum" />
-                <span>Maximum</span>
-              </label>
-            </div>
-          </fieldset>
+            <div class="inline-options">
+              <fieldset>
+                <div class="field-heading">
+                  <legend>ขยาย</legend>
+                </div>
+                <div class="segmented compact">
+                  <label><input type="radio" name="scale" value="2" checked /><span>2×</span></label>
+                  <label><input type="radio" name="scale" value="4" /><span>4×</span></label>
+                </div>
+              </fieldset>
 
-          <fieldset>
-            <legend>รูปแบบไฟล์ Download</legend>
-            <div class="segmented three">
-              <label><input type="radio" name="format" value="jpg" checked /><span>JPG</span></label>
-              <label><input type="radio" name="format" value="png" /><span>PNG</span></label>
-              <label><input type="radio" name="format" value="webp" /><span>WebP</span></label>
+              <fieldset>
+                <div class="field-heading">
+                  <legend>ไฟล์</legend>
+                </div>
+                <div class="segmented three compact">
+                  <label><input type="radio" name="format" value="jpg" checked /><span>JPG</span></label>
+                  <label><input type="radio" name="format" value="png" /><span>PNG</span></label>
+                  <label><input type="radio" name="format" value="webp" /><span>WebP</span></label>
+                </div>
+              </fieldset>
             </div>
-            <p class="field-hint">JPG สำหรับภาพทั่วไป · PNG สำหรับคุณภาพและความโปร่งใส · WebP สำหรับไฟล์เว็บขนาดเล็ก</p>
-          </fieldset>
+          </div>
 
           <button id="enhanceButton" class="primary-button" type="button" disabled>
-            <span id="enhanceButtonLabel">Enhance Image</span>
+            <span class="button-spinner" aria-hidden="true"></span>
+            <span id="enhanceButtonLabel">Enhance</span>
           </button>
 
           <p class="truth-note">
-            AI อาจเพิ่มรายละเอียดที่คาดเดาขึ้นมา ผลลัพธ์ไม่ควรใช้แทนต้นฉบับในงานกฎหมาย
-            หลักฐาน หรือการยืนยันตัวบุคคล
+            AI อาจคาดเดารายละเอียดบางส่วน ต้นฉบับยังเป็น source of truth เสมอ
           </p>
-        </div>
+        </aside>
 
-        <div class="panel preview-panel">
+        <section class="preview-panel" aria-label="Image preview">
           <div id="emptyPreview" class="empty-preview">
-            <div class="preview-placeholder"></div>
-            <p>ภาพ Before / After จะแสดงที่นี่</p>
+            <div class="empty-visual" aria-hidden="true">
+              <div class="empty-frame back"></div>
+              <div class="empty-frame front">
+                <svg viewBox="0 0 24 24">
+                  <path d="M4 6.75A1.75 1.75 0 0 1 5.75 5h12.5A1.75 1.75 0 0 1 20 6.75v10.5A1.75 1.75 0 0 1 18.25 19H5.75A1.75 1.75 0 0 1 4 17.25V6.75Z" />
+                  <path d="m6.5 16 3.2-3.6 2.4 2.35 2.15-2.35L17.5 16" />
+                  <circle cx="15.7" cy="8.7" r="1.35" />
+                </svg>
+              </div>
+            </div>
+            <div>
+              <strong>Preview จะอยู่ตรงนี้</strong>
+              <p>เลือกภาพด้านซ้ายเพื่อเริ่มต้น</p>
+            </div>
           </div>
 
           <div id="comparisonView" class="comparison-view hidden">
             <div class="preview-toolbar">
-              <div>
-                <strong id="previewTitle">Before / After</strong>
+              <div class="preview-heading">
+                <div class="preview-title-row">
+                  <strong id="previewTitle">Before / After</strong>
+                  <span class="status-dot" aria-hidden="true"></span>
+                </div>
                 <span id="engineLabel"></span>
               </div>
               <div class="toolbar-actions">
-                <button id="resetButton" class="tertiary-button" type="button" disabled>เริ่มใหม่</button>
+                <button id="resetButton" class="tertiary-button" type="button" disabled>Clear</button>
                 <button id="downloadButton" class="secondary-button" type="button" disabled>
                   Download JPG
                 </button>
@@ -150,44 +185,27 @@
                 value="50"
                 aria-label="Compare before and after"
               />
-              <span class="image-tag before-tag">BEFORE</span>
-              <span class="image-tag after-tag">AFTER</span>
+              <span class="image-tag before-tag">Before</span>
+              <span class="image-tag after-tag">After</span>
             </div>
 
             <div class="result-meta">
-              <span id="originalDimensions"></span>
-              <span id="outputDimensions"></span>
+              <span id="originalDimensions" class="meta-chip"></span>
+              <span id="outputDimensions" class="meta-chip"></span>
             </div>
           </div>
 
           <div id="statusBox" class="status-box hidden" role="status" aria-live="polite"></div>
-        </div>
+        </section>
       </section>
 
-      <section class="value-grid" aria-label="Product value">
-        <article>
-          <span>01</span>
-          <h2>Privacy-first</h2>
-          <p>ประมวลผลจาก request โดยไม่สร้างคลังภาพหรือประวัติผู้ใช้ใน MVP</p>
-        </article>
-        <article>
-          <span>02</span>
-          <h2>Truth-conscious</h2>
-          <p>ออกแบบระดับ Natural เป็นค่าเริ่มต้น ลดความเสี่ยงภาพคมเกินจริง</p>
-        </article>
-        <article>
-          <span>03</span>
-          <h2>Business-ready</h2>
-          <p>โครงสร้างรองรับ Batch, Credit และ B2B API ในเฟสถัดไป</p>
-        </article>
-      </section>
+      <div class="micro-footer">
+        <span>ClearFrame AI · v0.1.3</span>
+        <span>Preserve color · No image history</span>
+      </div>
     </main>
 
-    <footer>
-      <span>ClearFrame AI · MVP v0.1.1</span>
-      <span>Original image remains the source of truth.</span>
-    </footer>
-
-    <script type="module" src="/app.js"></script>
+    <script type="module" src="/app.js?v=0.1.3"></script>
+    <script type="module" src="/inspector.js?v=0.1.3"></script>
   </body>
 </html>

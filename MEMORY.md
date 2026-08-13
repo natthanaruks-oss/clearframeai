@@ -42,3 +42,33 @@ Users need common downloadable formats, and a hardcoded WebP output creates fric
 ### Verification
 
 Static syntax and project checks cover all three formats and critical frontend/API hooks. Production deployment and real-image output still require execution in the user's Cloudflare account.
+
+
+## 2026-08-06 — v0.1.2 Color Fidelity
+
+### What happened
+
+Production output looked too similar in Fit view and some colors shifted.
+
+### Decision
+
+Remove automatic color adjustments, reduce secondary sharpening, increase lossy output quality, and add synchronized 100%/200% Pixel Detail inspection.
+
+### Rule
+
+Image clarity changes must not alter contrast, saturation, brightness or gamma unless the user explicitly opts in.
+
+
+## 2026-08-13 — v0.1.3 Clean Studio UI
+
+### What changed
+
+Redesigned the production interface around a compact studio layout while keeping the v0.1.2 enhancement engine unchanged.
+
+### Why
+
+The previous page used too much vertical space and exposed secondary information too prominently. The new layout gives the preview visual priority and keeps Pixel Detail opt-in.
+
+### Guardrail
+
+Do not add new image features as part of UI cleanup. Engine benchmarking remains a separate workstream.

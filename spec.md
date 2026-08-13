@@ -1,6 +1,6 @@
 # ClearFrame AI — Product & Technical Specification
 
-**Version:** 0.1.1  
+**Version:** 0.1.3
 **Status:** Build-ready MVP  
 **Product stance:** Truth-conscious image enhancement, not forensic reconstruction
 
@@ -149,3 +149,20 @@ No commercial launch until the benchmark identifies which use cases are acceptab
 ## 10. Definition of Done
 
 See README checklist. Production status requires deployment evidence and test outputs from the user's own Cloudflare account.
+
+
+## 11. v0.1.2 Quality Policy
+
+- No automatic Contrast, Saturation, Brightness or Gamma changes.
+- Natural applies no secondary sharpen beyond ESRGAN.
+- Clear and Maximum apply conservative edge sharpening only.
+- Pixel Detail displays the original browser-upscaled to the AI output dimensions, enabling a like-for-like inspection at 100% or 200%.
+
+
+## 12. v0.1.3 UX Policy
+
+- Keep one primary action: Enhance.
+- Preview has visual priority over controls.
+- Advanced inspection stays collapsed until requested.
+- Avoid oversized hero content, promotional cards and redundant copy inside the working screen.
+- Preserve all v0.1.2 enhancement and color-fidelity behavior.

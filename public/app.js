@@ -72,7 +72,8 @@ function setBusy(busy) {
   elements.enhanceButton.disabled = busy || !state.file;
   elements.downloadButton.disabled = busy || !state.enhancedUrl;
   elements.resetButton.disabled = busy || !state.file;
-  elements.enhanceButtonLabel.textContent = busy ? "Enhancing…" : "Enhance Image";
+  elements.enhanceButtonLabel.textContent = busy ? "กำลังประมวลผล…" : "Enhance";
+  elements.enhanceButton.classList.toggle("is-busy", busy);
 }
 
 function updateDownloadButton() {
@@ -101,13 +102,15 @@ function clearEnhancedResult({ notify = false } = {}) {
     updateSlider();
   }
 
-  elements.engineLabel.textContent = state.file ? "พร้อมประมวลผล" : "";
+  elements.engineLabel.textContent = state.file ? "พร้อม Enhance" : "";
   elements.outputDimensions.textContent = state.file ? "ยังไม่ได้ประมวลผล" : "";
   updateDownloadButton();
   setBusy(false);
 
+  window.dispatchEvent(new CustomEvent("clearframe:result-cleared"));
+
   if (notify && state.file) {
-    showStatus("มีการเปลี่ยนค่าการประมวลผล กรุณากด Enhance Image อีกครั้ง", "info");
+    showStatus("มีการเปลี่ยนค่า กรุณากด Enhance อีกครั้ง", "info");
   }
 }
 
@@ -147,7 +150,7 @@ async function selectFile(file) {
     elements.originalDimensions.textContent =
       `Original ${dimensions.width} × ${dimensions.height} · ${formatBytes(file.size)}`;
     elements.outputDimensions.textContent = "ยังไม่ได้ประมวลผล";
-    elements.engineLabel.textContent = "พร้อมประมวลผล";
+    elements.engineLabel.textContent = "พร้อม Enhance";
     elements.compareSlider.value = "100";
     updateSlider();
     updateDownloadButton();
@@ -189,6 +192,7 @@ function resetApplication() {
   hideStatus();
   updateDownloadButton();
   setBusy(false);
+  window.dispatchEvent(new CustomEvent("clearframe:result-cleared"));
 }
 
 function updateSlider() {
@@ -221,21 +225,15 @@ async function localEnhance(file, scale, mode, strength, outputFormat) {
     context.fillRect(0, 0, width, height);
   }
 
-  const strengthMap = {
-    natural: { contrast: 1.03, saturate: 1.0, quality: 0.88 },
-    clear: { contrast: 1.08, saturate: 1.02, quality: 0.91 },
-    maximum: { contrast: 1.14, saturate: 1.04, quality: 0.94 },
+  const qualityMap = {
+    natural: 0.96,
+    clear: 0.96,
+    maximum: 0.96,
   };
-  const setting = strengthMap[strength];
+  const quality = qualityMap[strength] || 0.96;
 
-  if (mode === "document") {
-    context.filter = `contrast(${setting.contrast + 0.18}) saturate(0.9)`;
-  } else if (mode === "face") {
-    context.filter = `contrast(${Math.max(1, setting.contrast - 0.02)}) saturate(1)`;
-  } else {
-    context.filter = `contrast(${setting.contrast}) saturate(${setting.saturate})`;
-  }
-
+  // Local preview is interpolation only. Do not alter contrast or color.
+  context.filter = "none";
   context.drawImage(bitmap, 0, 0, width, height);
   bitmap.close();
 
@@ -243,7 +241,7 @@ async function localEnhance(file, scale, mode, strength, outputFormat) {
     canvas.toBlob(
       (output) => (output ? resolve(output) : reject(new Error("Canvas export failed"))),
       format.mime,
-      format.mime === "image/png" ? undefined : setting.quality,
+      format.mime === "image/png" ? undefined : quality,
     );
   });
 
@@ -303,7 +301,7 @@ async function enhanceImage() {
       outputDimensions = await readDimensions(blob);
     }
 
-    engine = "AI · Cloudflare ESRGAN";
+    engine = "AI Upscale · Preserve color";
   } catch (error) {
     console.warn("AI endpoint unavailable, using local fallback", error);
     showStatus(
@@ -326,11 +324,25 @@ async function enhanceImage() {
   elements.afterImage.src = state.enhancedUrl;
   elements.engineLabel.textContent = engine;
   elements.outputDimensions.textContent =
-    `Output ${outputDimensions.width} × ${outputDimensions.height} · ${format.label} · ${formatBytes(blob.size)}`;
+    `After ${outputDimensions.width} × ${outputDimensions.height} · ${format.label} · ${formatBytes(blob.size)}`;
   elements.compareSlider.value = "50";
   updateSlider();
   updateDownloadButton();
   setBusy(false);
+
+  window.dispatchEvent(
+    new CustomEvent("clearframe:enhanced", {
+      detail: {
+        originalUrl: state.originalUrl,
+        enhancedUrl: state.enhancedUrl,
+        originalWidth: state.originalWidth,
+        originalHeight: state.originalHeight,
+        outputWidth: state.outputWidth,
+        outputHeight: state.outputHeight,
+        engine: state.engine,
+      },
+    }),
+  );
 }
 
 function downloadEnhanced() {

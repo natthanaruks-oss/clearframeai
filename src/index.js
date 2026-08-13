@@ -11,22 +11,38 @@ const ALLOWED_TYPES = new Set([
 ]);
 
 const OUTPUT_FORMATS = {
-  jpg: { mime: "image/jpeg", extension: "jpg", supportsQuality: true },
-  png: { mime: "image/png", extension: "png", supportsQuality: false },
-  webp: { mime: "image/webp", extension: "webp", supportsQuality: true },
+  jpg: {
+    mime: "image/jpeg",
+    extension: "jpg",
+    supportsQuality: true,
+    quality: 96,
+  },
+  png: {
+    mime: "image/png",
+    extension: "png",
+    supportsQuality: false,
+  },
+  webp: {
+    mime: "image/webp",
+    extension: "webp",
+    supportsQuality: true,
+    quality: 96,
+  },
 };
 
+// Color fidelity policy: do not change contrast, saturation, brightness or gamma.
+// ESRGAN performs the primary upscale; sharpening is deliberately conservative.
 const STRENGTH_PRESETS = {
-  natural: { sharpen: 0.8, contrast: 1.02, saturation: 1.0, quality: 88 },
-  clear: { sharpen: 1.5, contrast: 1.06, saturation: 1.0, quality: 91 },
-  maximum: { sharpen: 2.3, contrast: 1.1, saturation: 1.02, quality: 94 },
+  natural: { sharpen: 0 },
+  clear: { sharpen: 0.8 },
+  maximum: { sharpen: 1.6 },
 };
 
 const MODE_ADJUSTMENTS = {
-  auto: { sharpen: 0, contrast: 0, saturation: 0 },
-  photo: { sharpen: 0.1, contrast: 0, saturation: 0.02 },
-  face: { sharpen: -0.2, contrast: -0.01, saturation: 0 },
-  document: { sharpen: 0.8, contrast: 0.12, saturation: -0.08 },
+  auto: { sharpen: 0 },
+  photo: { sharpen: 0.05 },
+  face: { sharpen: -0.2 },
+  document: { sharpen: 0.3 },
 };
 
 function json(data, status = 200, headers = {}) {
@@ -79,22 +95,23 @@ function buildTransform(mode, strength, width, height, scale, outputFormat) {
   const modeAdjustment = MODE_ADJUSTMENTS[mode];
   const target = calculateTargetSize(width, height, scale);
   const preserveAlpha = outputFormat === "png" || outputFormat === "webp";
+  const sharpen = clamp(base.sharpen + modeAdjustment.sharpen, 0, 10);
 
-  return {
-    target,
-    options: {
-      width: target.width,
-      height: target.height,
-      fit: "contain",
-      upscale: "generate",
-      sharpen: clamp(base.sharpen + modeAdjustment.sharpen, 0, 10),
-      contrast: clamp(base.contrast + modeAdjustment.contrast, 0.5, 2),
-      saturation: clamp(base.saturation + modeAdjustment.saturation, 0, 2),
-      background: preserveAlpha ? "rgba(0,0,0,0)" : "white",
-      anim: false,
-    },
-    quality: base.quality,
+  const options = {
+    width: target.width,
+    height: target.height,
+    fit: "contain",
+    upscale: "generate",
+    background: preserveAlpha ? "rgba(0,0,0,0)" : "white",
+    anim: false,
   };
+
+  // Omit no-op color parameters entirely so the source color is preserved.
+  if (sharpen > 0) {
+    options.sharpen = sharpen;
+  }
+
+  return { target, options };
 }
 
 async function enhance(request, env) {
@@ -183,7 +200,7 @@ async function enhance(request, env) {
   };
 
   if (format.supportsQuality) {
-    outputOptions.quality = plan.quality;
+    outputOptions.quality = format.quality;
   }
 
   try {
@@ -218,6 +235,7 @@ async function enhance(request, env) {
         "x-clearframe-mode": mode,
         "x-clearframe-strength": strength,
         "x-clearframe-format": outputFormat,
+        "x-clearframe-color-policy": "preserve",
         "x-content-type-options": "nosniff",
       },
     });
@@ -241,9 +259,11 @@ export default {
       return json({
         ok: true,
         app: "ClearFrame AI",
-        version: "0.1.1",
+        version: "0.1.3",
         imagesBinding: Boolean(env.IMAGES),
         outputFormats: Object.keys(OUTPUT_FORMATS),
+        colorPolicy: "preserve",
+        comparisonModes: ["fit", "100%", "200%"],
       });
     }
 

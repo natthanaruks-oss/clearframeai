@@ -1,5 +1,12 @@
-const CACHE_NAME = "clearframe-shell-v0.1.1";
-const SHELL = ["/", "/styles.css", "/app.js", "/icon.svg", "/manifest.webmanifest"];
+const CACHE_NAME = "clearframe-shell-v0.1.3";
+const SHELL = [
+  "/",
+  "/styles.css?v=0.1.3",
+  "/app.js?v=0.1.3",
+  "/inspector.js?v=0.1.3",
+  "/icon.svg",
+  "/manifest.webmanifest",
+];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(SHELL)));

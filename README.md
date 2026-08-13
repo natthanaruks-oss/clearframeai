@@ -1,4 +1,4 @@
-# ClearFrame AI — MVP v0.1.1
+# ClearFrame AI — MVP v0.1.3
 
 Web/PWA สำหรับเพิ่ม Resolution และความคมชัดของภาพ โดยออกแบบตามหลัก:
 
@@ -124,3 +124,24 @@ Official references:
 - PNG: เหมาะกับภาพที่ต้องการ lossless output หรือคง transparency
 - WebP: เหมาะกับการใช้งานบนเว็บและไฟล์ขนาดเล็ก
 - เมื่อเปลี่ยน Mode, Scale, Strength หรือ Format หลัง Enhance ระบบจะบังคับให้ประมวลผลใหม่ เพื่อไม่ให้ Download ผลลัพธ์คนละค่ากับหน้าจอ
+
+
+## v0.1.2 — Color Fidelity & Pixel Detail
+
+- Removes automatic contrast and saturation adjustments.
+- Uses conservative sharpening presets: Natural 0, Clear 0.8, Maximum 1.6.
+- Raises JPEG/WebP output quality to 96.
+- Adds synchronized Before/After Pixel Detail at 100% and 200%.
+- Adds `x-clearframe-color-policy: preserve`.
+
+
+## v0.1.3 — Clean Studio UI
+
+UI-only refinement. The enhancement engine and color-fidelity policy are unchanged.
+
+- Compact 322 px control rail and larger preview area
+- Reduced hero/header height and removed marketing cards
+- Simplified upload, preset, scale and output controls
+- Visible busy state without adding dependencies
+- Pixel Detail is collapsed by default and opens only on demand
+- Mobile layout remains single-column and touch-friendly
