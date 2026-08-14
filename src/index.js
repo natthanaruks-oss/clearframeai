@@ -11,39 +11,18 @@ const ALLOWED_TYPES = new Set([
 ]);
 
 const OUTPUT_FORMATS = {
-  jpg: {
-    mime: "image/jpeg",
-    extension: "jpg",
-    supportsQuality: true,
-    quality: 96,
-  },
-  png: {
-    mime: "image/png",
-    extension: "png",
-    supportsQuality: false,
-  },
-  webp: {
-    mime: "image/webp",
-    extension: "webp",
-    supportsQuality: true,
-    quality: 96,
-  },
+  jpg: { mime: "image/jpeg", extension: "jpg", quality: 95 },
+  png: { mime: "image/png", extension: "png", quality: null },
+  webp: { mime: "image/webp", extension: "webp", quality: 95 },
 };
 
-// Color fidelity policy: do not change contrast, saturation, brightness or gamma.
-// ESRGAN performs the primary upscale; sharpening is deliberately conservative.
 const STRENGTH_PRESETS = {
-  natural: { sharpen: 0 },
-  clear: { sharpen: 0.8 },
-  maximum: { sharpen: 1.6 },
+  natural: { sharpen: 0.0 },
+  clear: { sharpen: 0.6 },
+  maximum: { sharpen: 1.1 },
 };
 
-const MODE_ADJUSTMENTS = {
-  auto: { sharpen: 0 },
-  photo: { sharpen: 0.05 },
-  face: { sharpen: -0.2 },
-  document: { sharpen: 0.3 },
-};
+const MODES = new Set(["general", "photo", "face", "document", "auto"]);
 
 function json(data, status = 200, headers = {}) {
   return new Response(JSON.stringify(data), {
@@ -56,24 +35,19 @@ function json(data, status = 200, headers = {}) {
   });
 }
 
-function clamp(value, min, max) {
-  return Math.min(Math.max(value, min), max);
-}
-
 function safeEnum(value, allowed, fallback) {
   return allowed.includes(value) ? value : fallback;
 }
 
-function calculateTargetSize(width, height, scale) {
-  let targetWidth = width * scale;
-  let targetHeight = height * scale;
+function clampOutput(width, height) {
+  let targetWidth = width;
+  let targetHeight = height;
 
   const dimensionRatio = Math.min(
     1,
     MAX_OUTPUT_DIMENSION / targetWidth,
     MAX_OUTPUT_DIMENSION / targetHeight,
   );
-
   targetWidth *= dimensionRatio;
   targetHeight *= dimensionRatio;
 
@@ -90,28 +64,44 @@ function calculateTargetSize(width, height, scale) {
   };
 }
 
-function buildTransform(mode, strength, width, height, scale, outputFormat) {
-  const base = STRENGTH_PRESETS[strength];
-  const modeAdjustment = MODE_ADJUSTMENTS[mode];
-  const target = calculateTargetSize(width, height, scale);
-  const preserveAlpha = outputFormat === "png" || outputFormat === "webp";
-  const sharpen = clamp(base.sharpen + modeAdjustment.sharpen, 0, 10);
+function chooseAiMaster(width, height) {
+  const longest = Math.max(width, height);
 
+  // Quality-first policy:
+  // small images => full 4x AI master
+  // medium images => 2x AI master
+  // large images => 2x only if safe, otherwise preserve size
+  let factor = 2;
+
+  if (longest < 1200) factor = 4;
+  else if (longest <= 2200) factor = 2;
+  else factor = 2;
+
+  const master = clampOutput(width * factor, height * factor);
+
+  // If limits force the result to barely exceed source size, don't pretend it is 2x/4x.
+  const effectiveFactor = Math.min(master.width / width, master.height / height);
+
+  return {
+    requestedFactor: factor,
+    effectiveFactor,
+    width: master.width,
+    height: master.height,
+  };
+}
+
+function chooseRequestedOutput(width, height, requestedScale) {
+  return clampOutput(width * requestedScale, height * requestedScale);
+}
+
+function outputOptions(format) {
+  const config = OUTPUT_FORMATS[format];
   const options = {
-    width: target.width,
-    height: target.height,
-    fit: "contain",
-    upscale: "generate",
-    background: preserveAlpha ? "rgba(0,0,0,0)" : "white",
+    format: config.mime,
     anim: false,
   };
-
-  // Omit no-op color parameters entirely so the source color is preserved.
-  if (sharpen > 0) {
-    options.sharpen = sharpen;
-  }
-
-  return { target, options };
+  if (config.quality !== null) options.quality = config.quality;
+  return options;
 }
 
 async function enhance(request, env) {
@@ -152,19 +142,19 @@ async function enhance(request, env) {
     );
   }
 
-  const mode = safeEnum(String(form.get("mode") || ""), Object.keys(MODE_ADJUSTMENTS), "auto");
+  const modeRaw = String(form.get("mode") || "general");
+  const mode = MODES.has(modeRaw) ? modeRaw : "general";
   const strength = safeEnum(
     String(form.get("strength") || ""),
     Object.keys(STRENGTH_PRESETS),
     "natural",
   );
+  const requestedScale = Number(form.get("scale")) === 4 ? 4 : 2;
   const outputFormat = safeEnum(
     String(form.get("format") || ""),
     Object.keys(OUTPUT_FORMATS),
     "jpg",
   );
-  const scale = Number(form.get("scale")) === 4 ? 4 : 2;
-  const format = OUTPUT_FORMATS[outputFormat];
 
   let info;
   try {
@@ -193,21 +183,49 @@ async function enhance(request, env) {
     );
   }
 
-  const plan = buildTransform(mode, strength, width, height, scale, outputFormat);
-  const outputOptions = {
-    format: format.mime,
-    anim: false,
+  const master = chooseAiMaster(width, height);
+  const requestedOutput = chooseRequestedOutput(width, height, requestedScale);
+
+  // Never enlarge past the AI master. This avoids bicubic enlargement after ESRGAN.
+  const finalOutput = {
+    width: Math.min(requestedOutput.width, master.width),
+    height: Math.min(requestedOutput.height, master.height),
   };
 
-  if (format.supportsQuality) {
-    outputOptions.quality = format.quality;
-  }
+  const sharpen = STRENGTH_PRESETS[strength].sharpen;
 
   try {
+    let pipeline = env.IMAGES
+      .input(file.stream())
+      .transform({
+        width: master.width,
+        height: master.height,
+        fit: "contain",
+        upscale: "generate",
+        anim: false,
+      });
+
+    // If final requested output is smaller than AI master, downsample first, then sharpen.
+    if (
+      finalOutput.width !== master.width ||
+      finalOutput.height !== master.height
+    ) {
+      pipeline = pipeline.transform({
+        width: finalOutput.width,
+        height: finalOutput.height,
+        fit: "contain",
+      });
+    }
+
+    // Sharpen is deliberately last and conservative.
+    if (sharpen > 0) {
+      pipeline = pipeline.transform({
+        sharpen,
+      });
+    }
+
     const transformed = (
-      await env.IMAGES.input(file.stream())
-        .transform(plan.options)
-        .output(outputOptions)
+      await pipeline.output(outputOptions(outputFormat))
     ).response();
 
     if (!transformed.ok) {
@@ -223,19 +241,28 @@ async function enhance(request, env) {
       );
     }
 
+    const format = OUTPUT_FORMATS[outputFormat];
+
     return new Response(transformed.body, {
       status: 200,
       headers: {
-        "content-type": transformed.headers.get("content-type") || format.mime,
+        "content-type":
+          transformed.headers.get("content-type") || format.mime,
         "cache-control": "no-store",
-        "content-disposition": `inline; filename="clearframe-${Date.now()}.${format.extension}"`,
+        "content-disposition":
+          `inline; filename="clearframe-${Date.now()}.${format.extension}"`,
         "x-clearframe-engine": "cloudflare-images-esrgan",
         "x-clearframe-original": `${width}x${height}`,
-        "x-clearframe-output": `${plan.target.width}x${plan.target.height}`,
+        "x-clearframe-ai-master": `${master.width}x${master.height}`,
+        "x-clearframe-ai-factor": master.effectiveFactor.toFixed(2),
+        "x-clearframe-output": `${finalOutput.width}x${finalOutput.height}`,
         "x-clearframe-mode": mode,
         "x-clearframe-strength": strength,
+        "x-clearframe-sharpen": String(sharpen),
         "x-clearframe-format": outputFormat,
         "x-clearframe-color-policy": "preserve",
+        "x-clearframe-quality-policy":
+          outputFormat === "png" ? "lossless-png" : "quality-95",
         "x-content-type-options": "nosniff",
       },
     });
@@ -259,10 +286,11 @@ export default {
       return json({
         ok: true,
         app: "ClearFrame AI",
-        version: "0.1.3",
+        version: "0.1.5",
         imagesBinding: Boolean(env.IMAGES),
         outputFormats: Object.keys(OUTPUT_FORMATS),
         colorPolicy: "preserve",
+        qualityPolicy: "ai-master-then-downsample",
         comparisonModes: ["fit", "100%", "200%"],
       });
     }

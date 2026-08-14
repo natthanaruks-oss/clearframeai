@@ -1,9 +1,3 @@
-const FORMAT_CONFIG = {
-  jpg: { mime: "image/jpeg", extension: "jpg", label: "JPG" },
-  png: { mime: "image/png", extension: "png", label: "PNG" },
-  webp: { mime: "image/webp", extension: "webp", label: "WebP" },
-};
-
 const elements = {
   dropZone: document.querySelector("#dropZone"),
   fileInput: document.querySelector("#fileInput"),
@@ -20,11 +14,18 @@ const elements = {
   afterLayer: document.querySelector("#afterLayer"),
   compareHandle: document.querySelector("#compareHandle"),
   compareSlider: document.querySelector("#compareSlider"),
+  compareFrame: document.querySelector("#compareFrame"),
+  panCanvas: document.querySelector("#panCanvas"),
+  compareHint: document.querySelector("#compareHint"),
+  centerViewButton: document.querySelector("#centerViewButton"),
+  flickButton: document.querySelector("#flickButton"),
+  zoomButtons: [...document.querySelectorAll("[data-zoom]")],
   downloadButton: document.querySelector("#downloadButton"),
   resetButton: document.querySelector("#resetButton"),
   engineLabel: document.querySelector("#engineLabel"),
   originalDimensions: document.querySelector("#originalDimensions"),
   outputDimensions: document.querySelector("#outputDimensions"),
+  resultDetails: document.querySelector("#resultDetails"),
   statusBox: document.querySelector("#statusBox"),
 };
 
@@ -37,10 +38,121 @@ const state = {
   originalHeight: 0,
   outputWidth: 0,
   outputHeight: 0,
-  outputFormat: "jpg",
   engine: null,
-  busy: false,
+  outputFormat: "jpg",
+  zoomMode: "fit",
+  panX: 0,
+  panY: 0,
+  dragging: false,
+  dragStartX: 0,
+  dragStartY: 0,
+  panStartX: 0,
+  panStartY: 0,
+  flicking: false,
 };
+
+
+function zoomScale() {
+  if (state.zoomMode === "200") return 2;
+  if (state.zoomMode === "100") return 1;
+  return 1;
+}
+
+function updateCompareTransform() {
+  if (!elements.compareFrame || !elements.panCanvas) return;
+
+  elements.compareFrame.classList.toggle("is-fit", state.zoomMode === "fit");
+  elements.compareFrame.classList.toggle("is-pixel", state.zoomMode !== "fit");
+
+  if (state.zoomMode === "fit") {
+    elements.panCanvas.style.transform = "";
+    elements.panCanvas.style.width = "100%";
+    elements.panCanvas.style.height = "100%";
+    elements.panCanvas.style.cursor = "default";
+  } else {
+    const scale = zoomScale();
+    elements.panCanvas.style.width = `${Math.max(1, state.outputWidth || state.originalWidth)}px`;
+    elements.panCanvas.style.height = `${Math.max(1, state.outputHeight || state.originalHeight)}px`;
+    elements.panCanvas.style.transform =
+      `translate(${state.panX}px, ${state.panY}px) scale(${scale})`;
+    elements.panCanvas.style.transformOrigin = "0 0";
+    elements.panCanvas.style.cursor = state.dragging ? "grabbing" : "grab";
+  }
+
+  for (const button of elements.zoomButtons || []) {
+    button.classList.toggle("is-active", button.dataset.zoom === state.zoomMode);
+  }
+
+  if (elements.compareHint) {
+    elements.compareHint.textContent =
+      state.zoomMode === "fit"
+        ? "Fit ทำให้ภาพเต็มกรอบ แต่จะซ่อนความต่างระดับ pixel — ใช้ 100% เพื่อเทียบจริง"
+        : state.zoomMode === "100"
+          ? "100% = 1 image pixel ต่อ 1 screen pixel · ลากภาพเพื่อดูตำแหน่งเดียวกัน"
+          : "200% = ขยายตรวจ edge / halo / texture · ลากภาพเพื่อเลื่อนตำแหน่ง";
+  }
+
+  updateSlider();
+}
+
+function centerCompareView() {
+  state.panX = 0;
+  state.panY = 0;
+
+  if (state.zoomMode !== "fit" && elements.compareFrame) {
+    const rect = elements.compareFrame.getBoundingClientRect();
+    const scale = zoomScale();
+    const contentWidth = Math.max(1, state.outputWidth || state.originalWidth) * scale;
+    const contentHeight = Math.max(1, state.outputHeight || state.originalHeight) * scale;
+    state.panX = Math.round((rect.width - contentWidth) / 2);
+    state.panY = Math.round((rect.height - contentHeight) / 2);
+  }
+
+  updateCompareTransform();
+}
+
+function setZoomMode(mode) {
+  if (!["fit", "100", "200"].includes(mode)) return;
+  state.zoomMode = mode;
+  centerCompareView();
+}
+
+function setFlicking(active) {
+  state.flicking = active;
+  elements.compareFrame?.classList.toggle("is-flicking", active);
+  if (elements.flickButton) {
+    elements.flickButton.classList.toggle("is-active", active);
+    elements.flickButton.textContent = active ? "Showing Before" : "Hold Before";
+  }
+}
+
+function beginPan(event) {
+  if (state.zoomMode === "fit") return;
+  if (event.target === elements.compareSlider) return;
+
+  state.dragging = true;
+  state.dragStartX = event.clientX;
+  state.dragStartY = event.clientY;
+  state.panStartX = state.panX;
+  state.panStartY = state.panY;
+  elements.panCanvas?.setPointerCapture?.(event.pointerId);
+  updateCompareTransform();
+}
+
+function movePan(event) {
+  if (!state.dragging || state.zoomMode === "fit") return;
+
+  state.panX = state.panStartX + (event.clientX - state.dragStartX);
+  state.panY = state.panStartY + (event.clientY - state.dragStartY);
+  updateCompareTransform();
+}
+
+function endPan(event) {
+  if (!state.dragging) return;
+  state.dragging = false;
+  elements.panCanvas?.releasePointerCapture?.(event.pointerId);
+  updateCompareTransform();
+}
 
 function showStatus(message, type = "info") {
   elements.statusBox.textContent = message;
@@ -50,11 +162,11 @@ function showStatus(message, type = "info") {
 
 function hideStatus() {
   elements.statusBox.classList.add("hidden");
+  elements.statusBox.classList.remove("warning", "error");
 }
 
 function formatBytes(bytes) {
   if (!Number.isFinite(bytes)) return "";
-  if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
@@ -68,17 +180,10 @@ function revokeUrl(url) {
 }
 
 function setBusy(busy) {
-  state.busy = busy;
   elements.enhanceButton.disabled = busy || !state.file;
   elements.downloadButton.disabled = busy || !state.enhancedUrl;
-  elements.resetButton.disabled = busy || !state.file;
-  elements.enhanceButtonLabel.textContent = busy ? "กำลังประมวลผล…" : "Enhance";
-  elements.enhanceButton.classList.toggle("is-busy", busy);
-}
-
-function updateDownloadButton() {
-  const format = FORMAT_CONFIG[state.outputFormat] || FORMAT_CONFIG.jpg;
-  elements.downloadButton.textContent = `Download ${format.label}`;
+  elements.enhanceButton.classList.toggle("is-loading", busy);
+  elements.enhanceButtonLabel.textContent = busy ? "Enhancing…" : "Enhance";
 }
 
 async function readDimensions(file) {
@@ -88,29 +193,25 @@ async function readDimensions(file) {
   return dimensions;
 }
 
-function clearEnhancedResult({ notify = false } = {}) {
+function clearEnhancedResult() {
   revokeUrl(state.enhancedUrl);
   state.enhancedUrl = null;
   state.enhancedBlob = null;
   state.outputWidth = 0;
   state.outputHeight = 0;
   state.engine = null;
+  elements.downloadButton.disabled = true;
 
   if (state.originalUrl) {
     elements.afterImage.src = state.originalUrl;
+    elements.outputDimensions.textContent = "ยังไม่ได้ประมวลผล";
+    elements.engineLabel.textContent = "Ready";
+    elements.resultDetails.textContent = "";
     elements.compareSlider.value = "100";
-    updateSlider();
-  }
-
-  elements.engineLabel.textContent = state.file ? "พร้อม Enhance" : "";
-  elements.outputDimensions.textContent = state.file ? "ยังไม่ได้ประมวลผล" : "";
-  updateDownloadButton();
-  setBusy(false);
-
-  window.dispatchEvent(new CustomEvent("clearframe:result-cleared"));
-
-  if (notify && state.file) {
-    showStatus("มีการเปลี่ยนค่า กรุณากด Enhance อีกครั้ง", "info");
+    state.panX = 0;
+    state.panY = 0;
+    setFlicking(false);
+    updateCompareTransform();
   }
 }
 
@@ -131,29 +232,38 @@ async function selectFile(file) {
     const dimensions = await readDimensions(file);
 
     revokeUrl(state.originalUrl);
-    clearEnhancedResult();
+    revokeUrl(state.enhancedUrl);
 
     state.file = file;
     state.originalUrl = URL.createObjectURL(file);
+    state.enhancedUrl = null;
+    state.enhancedBlob = null;
     state.originalWidth = dimensions.width;
     state.originalHeight = dimensions.height;
 
     elements.fileName.textContent = file.name;
     elements.fileMeta.textContent =
       `${dimensions.width} × ${dimensions.height} px · ${formatBytes(file.size)}`;
+
     elements.dropZone.classList.add("hidden");
     elements.fileSummary.classList.remove("hidden");
     elements.emptyPreview.classList.add("hidden");
     elements.comparisonView.classList.remove("hidden");
+
     elements.beforeImage.src = state.originalUrl;
     elements.afterImage.src = state.originalUrl;
     elements.originalDimensions.textContent =
-      `Original ${dimensions.width} × ${dimensions.height} · ${formatBytes(file.size)}`;
+      `Original ${dimensions.width} × ${dimensions.height}`;
     elements.outputDimensions.textContent = "ยังไม่ได้ประมวลผล";
-    elements.engineLabel.textContent = "พร้อม Enhance";
+    elements.resultDetails.textContent = "";
+    elements.engineLabel.textContent = "Ready";
     elements.compareSlider.value = "100";
-    updateSlider();
-    updateDownloadButton();
+    state.zoomMode = "fit";
+    state.panX = 0;
+    state.panY = 0;
+    setFlicking(false);
+    updateCompareTransform();
+
     setBusy(false);
   } catch (error) {
     console.error(error);
@@ -166,9 +276,7 @@ function resetFilePicker() {
   elements.fileInput.click();
 }
 
-function resetApplication() {
-  if (state.busy) return;
-
+function resetStudio() {
   revokeUrl(state.originalUrl);
   revokeUrl(state.enhancedUrl);
 
@@ -181,58 +289,43 @@ function resetApplication() {
   state.outputWidth = 0;
   state.outputHeight = 0;
   state.engine = null;
+  state.zoomMode = "fit";
+  state.panX = 0;
+  state.panY = 0;
+  state.dragging = false;
+  state.flicking = false;
 
   elements.fileInput.value = "";
   elements.fileSummary.classList.add("hidden");
   elements.dropZone.classList.remove("hidden");
   elements.comparisonView.classList.add("hidden");
   elements.emptyPreview.classList.remove("hidden");
-  elements.beforeImage.removeAttribute("src");
-  elements.afterImage.removeAttribute("src");
   hideStatus();
-  updateDownloadButton();
   setBusy(false);
-  window.dispatchEvent(new CustomEvent("clearframe:result-cleared"));
 }
 
 function updateSlider() {
   const value = Number(elements.compareSlider.value);
   elements.afterLayer.style.width = `${value}%`;
   elements.compareHandle.style.left = `${value}%`;
-
-  const frameWidth = elements.afterLayer.parentElement?.clientWidth || 1;
-  elements.afterImage.style.width = `${frameWidth}px`;
 }
 
-async function localEnhance(file, scale, mode, strength, outputFormat) {
+async function localEnhance(file, scale) {
   const bitmap = await createImageBitmap(file);
   const maxDimension = 4096;
-  const ratio = Math.min(1, maxDimension / (Math.max(bitmap.width, bitmap.height) * scale));
+  const ratio = Math.min(
+    1,
+    maxDimension / (Math.max(bitmap.width, bitmap.height) * scale),
+  );
   const width = Math.max(1, Math.round(bitmap.width * scale * ratio));
   const height = Math.max(1, Math.round(bitmap.height * scale * ratio));
-  const format = FORMAT_CONFIG[outputFormat] || FORMAT_CONFIG.jpg;
-  const preserveAlpha = outputFormat === "png" || outputFormat === "webp";
 
   const canvas = document.createElement("canvas");
   canvas.width = width;
   canvas.height = height;
-  const context = canvas.getContext("2d", { alpha: preserveAlpha });
+  const context = canvas.getContext("2d", { alpha: false });
   context.imageSmoothingEnabled = true;
   context.imageSmoothingQuality = "high";
-
-  if (!preserveAlpha) {
-    context.fillStyle = "#ffffff";
-    context.fillRect(0, 0, width, height);
-  }
-
-  const qualityMap = {
-    natural: 0.96,
-    clear: 0.96,
-    maximum: 0.96,
-  };
-  const quality = qualityMap[strength] || 0.96;
-
-  // Local preview is interpolation only. Do not alter contrast or color.
   context.filter = "none";
   context.drawImage(bitmap, 0, 0, width, height);
   bitmap.close();
@@ -240,8 +333,7 @@ async function localEnhance(file, scale, mode, strength, outputFormat) {
   const blob = await new Promise((resolve, reject) => {
     canvas.toBlob(
       (output) => (output ? resolve(output) : reject(new Error("Canvas export failed"))),
-      format.mime,
-      format.mime === "image/png" ? undefined : quality,
+      "image/png",
     );
   });
 
@@ -249,31 +341,27 @@ async function localEnhance(file, scale, mode, strength, outputFormat) {
 }
 
 async function enhanceImage() {
-  if (!state.file || state.busy) return;
+  if (!state.file) return;
 
   setBusy(true);
   hideStatus();
 
-  const mode = getSelected("mode") || "auto";
+  const mode = getSelected("mode") || "general";
   const scale = Number(getSelected("scale") || 2);
   const strength = getSelected("strength") || "natural";
-  const outputFormat = getSelected("format") || "jpg";
-  const format = FORMAT_CONFIG[outputFormat] || FORMAT_CONFIG.jpg;
-
-  state.outputFormat = outputFormat;
-  localStorage.setItem("clearframe-output-format", outputFormat);
-  updateDownloadButton();
+  const format = getSelected("format") || "jpg";
 
   const formData = new FormData();
   formData.append("image", state.file);
   formData.append("mode", mode);
   formData.append("scale", String(scale));
   formData.append("strength", strength);
-  formData.append("format", outputFormat);
+  formData.append("format", format);
 
   let blob;
   let outputDimensions;
   let engine;
+  let detailText = "";
 
   try {
     const response = await fetch("/api/enhance", {
@@ -287,84 +375,85 @@ async function enhanceImage() {
     }
 
     blob = await response.blob();
+
     const outputHeader = response.headers.get("x-clearframe-output") || "";
-    const responseFormat = response.headers.get("x-clearframe-format");
-    const match = outputHeader.match(/^(\d+)x(\d+)$/);
+    const outputMatch = outputHeader.match(/^(\d+)x(\d+)$/);
 
-    if (responseFormat && FORMAT_CONFIG[responseFormat]) {
-      state.outputFormat = responseFormat;
-    }
-
-    if (match) {
-      outputDimensions = { width: Number(match[1]), height: Number(match[2]) };
+    if (outputMatch) {
+      outputDimensions = {
+        width: Number(outputMatch[1]),
+        height: Number(outputMatch[2]),
+      };
     } else {
       outputDimensions = await readDimensions(blob);
     }
 
-    engine = "AI Upscale · Preserve color";
+    const aiMaster = response.headers.get("x-clearframe-ai-master");
+    const aiFactor = response.headers.get("x-clearframe-ai-factor");
+    const sharpen = response.headers.get("x-clearframe-sharpen");
+    const qualityPolicy = response.headers.get("x-clearframe-quality-policy");
+
+    engine = "Cloudflare ESRGAN";
+    detailText = [
+      aiMaster ? `AI master ${aiMaster}` : "",
+      aiFactor ? `AI ${aiFactor}×` : "",
+      sharpen ? `Sharpen ${sharpen}` : "",
+      qualityPolicy === "lossless-png" ? "PNG lossless" : "Quality 95",
+    ]
+      .filter(Boolean)
+      .join(" · ");
   } catch (error) {
     console.warn("AI endpoint unavailable, using local fallback", error);
+
     showStatus(
-      "AI endpoint ยังไม่พร้อม จึงแสดง Local Preview ด้วย browser interpolation เพื่อทดสอบ UX ก่อน ผลนี้ยังไม่ใช่ AI Upscale",
+      "AI endpoint ยังไม่พร้อม จึงแสดง Local Preview เพื่อทดสอบ UX เท่านั้น ผลนี้ไม่ใช่ AI Enhance",
       "warning",
     );
-    const local = await localEnhance(state.file, scale, mode, strength, outputFormat);
+
+    const local = await localEnhance(state.file, scale);
     blob = local.blob;
     outputDimensions = { width: local.width, height: local.height };
     engine = "Local Preview · ไม่ใช่ AI";
+    detailText = "Browser interpolation only";
   }
 
   revokeUrl(state.enhancedUrl);
+
   state.enhancedBlob = blob;
   state.enhancedUrl = URL.createObjectURL(blob);
   state.outputWidth = outputDimensions.width;
   state.outputHeight = outputDimensions.height;
   state.engine = engine;
+  state.outputFormat = format;
 
   elements.afterImage.src = state.enhancedUrl;
   elements.engineLabel.textContent = engine;
   elements.outputDimensions.textContent =
-    `After ${outputDimensions.width} × ${outputDimensions.height} · ${format.label} · ${formatBytes(blob.size)}`;
+    `Output ${outputDimensions.width} × ${outputDimensions.height} · ${formatBytes(blob.size)}`;
+  elements.resultDetails.textContent = detailText;
   elements.compareSlider.value = "50";
-  updateSlider();
-  updateDownloadButton();
-  setBusy(false);
+  state.panX = 0;
+  state.panY = 0;
+  setFlicking(false);
+  if (state.zoomMode === "fit") {
+    updateCompareTransform();
+  } else {
+    requestAnimationFrame(centerCompareView);
+  }
 
-  window.dispatchEvent(
-    new CustomEvent("clearframe:enhanced", {
-      detail: {
-        originalUrl: state.originalUrl,
-        enhancedUrl: state.enhancedUrl,
-        originalWidth: state.originalWidth,
-        originalHeight: state.originalHeight,
-        outputWidth: state.outputWidth,
-        outputHeight: state.outputHeight,
-        engine: state.engine,
-      },
-    }),
-  );
+  setBusy(false);
 }
 
 function downloadEnhanced() {
   if (!state.enhancedUrl) return;
-  const format = FORMAT_CONFIG[state.outputFormat] || FORMAT_CONFIG.jpg;
+
   const link = document.createElement("a");
   const baseName = state.file?.name?.replace(/\.[^.]+$/, "") || "image";
-  link.href = state.enhancedUrl;
-  link.download = `${baseName}-clearframe.${format.extension}`;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-}
+  const extension = state.outputFormat === "jpg" ? "jpg" : state.outputFormat;
 
-function restoreFormatPreference() {
-  const saved = localStorage.getItem("clearframe-output-format");
-  if (!saved || !FORMAT_CONFIG[saved]) return;
-  const input = document.querySelector(`input[name="format"][value="${saved}"]`);
-  if (input) {
-    input.checked = true;
-    state.outputFormat = saved;
-  }
+  link.href = state.enhancedUrl;
+  link.download = `${baseName}-clearframe.${extension}`;
+  link.click();
 }
 
 elements.dropZone.addEventListener("click", resetFilePicker);
@@ -374,24 +463,33 @@ elements.dropZone.addEventListener("keydown", (event) => {
     resetFilePicker();
   }
 });
+
 elements.fileInput.addEventListener("change", () => selectFile(elements.fileInput.files?.[0]));
 elements.changeImageButton.addEventListener("click", resetFilePicker);
 elements.enhanceButton.addEventListener("click", enhanceImage);
 elements.downloadButton.addEventListener("click", downloadEnhanced);
-elements.resetButton.addEventListener("click", resetApplication);
+elements.resetButton?.addEventListener("click", resetStudio);
 elements.compareSlider.addEventListener("input", updateSlider);
-window.addEventListener("resize", updateSlider);
 
-for (const input of document.querySelectorAll('input[name="mode"], input[name="scale"], input[name="strength"], input[name="format"]')) {
-  input.addEventListener("change", () => {
-    if (input.name === "format") {
-      state.outputFormat = input.value;
-      localStorage.setItem("clearframe-output-format", input.value);
-      updateDownloadButton();
-    }
-    if (state.enhancedUrl) clearEnhancedResult({ notify: true });
-  });
+for (const button of elements.zoomButtons) {
+  button.addEventListener("click", () => setZoomMode(button.dataset.zoom));
 }
+
+elements.centerViewButton?.addEventListener("click", centerCompareView);
+
+elements.flickButton?.addEventListener("pointerdown", () => setFlicking(true));
+elements.flickButton?.addEventListener("pointerup", () => setFlicking(false));
+elements.flickButton?.addEventListener("pointercancel", () => setFlicking(false));
+elements.flickButton?.addEventListener("pointerleave", () => setFlicking(false));
+
+elements.panCanvas?.addEventListener("pointerdown", beginPan);
+elements.panCanvas?.addEventListener("pointermove", movePan);
+elements.panCanvas?.addEventListener("pointerup", endPan);
+elements.panCanvas?.addEventListener("pointercancel", endPan);
+
+window.addEventListener("resize", () => {
+  if (state.zoomMode === "fit") updateCompareTransform();
+});
 
 for (const eventName of ["dragenter", "dragover"]) {
   elements.dropZone.addEventListener(eventName, (event) => {
@@ -412,12 +510,12 @@ elements.dropZone.addEventListener("drop", (event) => {
   if (file) selectFile(file);
 });
 
-restoreFormatPreference();
-updateDownloadButton();
-setBusy(false);
+for (const input of document.querySelectorAll('input[name="mode"], input[name="scale"], input[name="strength"], input[name="format"]')) {
+  input.addEventListener("change", clearEnhancedResult);
+}
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("/service-worker.js").catch(console.warn);
+    navigator.serviceWorker.register("/service-worker.js?v=0.1.5").catch(console.warn);
   });
 }

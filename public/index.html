@@ -5,175 +5,143 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       name="description"
-      content="ClearFrame AI — ทำภาพให้ชัดขึ้นด้วย AI โดยรักษาสีต้นฉบับและไม่เก็บไฟล์ถาวร"
+      content="ClearFrame AI — เพิ่มความละเอียดและความคมชัดของภาพด้วย Cloudflare ESRGAN"
     />
-    <meta name="theme-color" content="#f7f8fa" />
+    <meta name="theme-color" content="#0f172a" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="/styles.css?v=0.1.3" />
+    <link rel="stylesheet" href="/styles.css?v=0.1.5" />
     <title>ClearFrame AI</title>
   </head>
   <body>
-    <header class="site-header">
-      <a class="brand" href="/" aria-label="ClearFrame AI Home">
-        <span class="brand-mark" aria-hidden="true">CF</span>
-        <span class="brand-copy">
-          <strong>ClearFrame</strong>
-          <small>AI image clarity</small>
-        </span>
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="ClearFrame AI">
+        <span class="brand-mark">CF</span>
+        <span class="brand-copy"><strong>ClearFrame</strong><small>AI Image Clarity</small></span>
       </a>
-      <div class="privacy-pill" title="MVP นี้ไม่สร้างคลังภาพหรือประวัติผู้ใช้">
-        <span class="privacy-dot" aria-hidden="true"></span>
-        ไม่เก็บภาพถาวร
+      <div class="top-actions">
+        <span class="privacy-pill">Private · no image history</span>
+        <button id="resetButton" class="ghost-button" type="button">Reset</button>
       </div>
     </header>
 
-    <main class="page-shell">
-      <section class="hero" aria-labelledby="heroTitle">
+    <main class="shell">
+      <section class="intro">
         <div>
-          <p class="eyebrow">CLEARFRAME AI</p>
-          <h1 id="heroTitle">ทำภาพให้ชัดขึ้น<br class="desktop-break" /> โดยไม่แต่งสีเกินจริง</h1>
+          <span class="eyebrow">CLEARER, NOT DIFFERENT</span>
+          <h1>ทำภาพให้ชัดขึ้น<br />โดยรักษาสีและรายละเอียดเดิม</h1>
         </div>
-        <p class="hero-copy">
-          อัปโหลดภาพ เลือกระดับที่ต้องการ แล้วเปรียบเทียบ Before / After ได้ทันที
+        <p>
+          Cloudflare ESRGAN quality pipeline: สร้าง AI master 2×/4× ก่อน
+          แล้วค่อยย่อและ sharpen แบบควบคุมได้
         </p>
       </section>
 
-      <section class="studio" aria-label="Image enhancement workspace">
-        <aside class="controls-panel" aria-label="Enhancement controls">
-          <div
-            id="dropZone"
-            class="drop-zone"
-            tabindex="0"
-            role="button"
-            aria-label="Upload image"
-          >
+      <section class="studio">
+        <aside class="controls">
+          <div id="dropZone" class="drop-zone" tabindex="0" role="button">
             <input
               id="fileInput"
               type="file"
               accept="image/jpeg,image/png,image/webp,image/gif,image/heic"
               hidden
             />
-            <span class="upload-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" role="img" aria-hidden="true">
-                <path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M5 14.5V18a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-3.5" />
-              </svg>
-            </span>
-            <span class="drop-copy">
-              <strong>เลือกภาพ</strong>
-              <small>ลากมาวางได้ · สูงสุด 20 MB</small>
-            </span>
+            <span class="upload-mark">＋</span>
+            <strong>วางภาพ หรือเลือกไฟล์</strong>
+            <small>JPEG · PNG · WebP · GIF · HEIC · ≤ 20 MB</small>
           </div>
 
           <div id="fileSummary" class="file-summary hidden">
             <div class="file-copy">
               <strong id="fileName"></strong>
-              <span id="fileMeta"></span>
+              <small id="fileMeta"></small>
             </div>
-            <button id="changeImageButton" class="icon-button" type="button" aria-label="เปลี่ยนภาพ">
-              เปลี่ยน
-            </button>
+            <button id="changeImageButton" class="text-button" type="button">เปลี่ยน</button>
           </div>
 
-          <div class="control-stack">
-            <fieldset>
-              <div class="field-heading">
-                <legend>ประเภทภาพ</legend>
-                <span>เลือกให้ใกล้กับต้นฉบับ</span>
-              </div>
-              <div class="segmented four compact">
-                <label><input type="radio" name="mode" value="auto" checked /><span>General</span></label>
-                <label><input type="radio" name="mode" value="photo" /><span>Photo</span></label>
-                <label><input type="radio" name="mode" value="face" /><span>Face</span></label>
-                <label><input type="radio" name="mode" value="document" /><span>Document</span></label>
-              </div>
-            </fieldset>
+          <div class="control-block">
+            <div class="label-row"><span>Image type</span></div>
+            <div class="segmented four">
+              <label><input type="radio" name="mode" value="general" checked /><span>General</span></label>
+              <label><input type="radio" name="mode" value="photo" /><span>Photo</span></label>
+              <label><input type="radio" name="mode" value="face" /><span>Face</span></label>
+              <label><input type="radio" name="mode" value="document" /><span>Document</span></label>
+            </div>
+          </div>
 
-            <fieldset>
-              <div class="field-heading">
-                <legend>ความคม</legend>
-                <span>เริ่มที่ Natural</span>
-              </div>
-              <div class="segmented three compact">
-                <label><input type="radio" name="strength" value="natural" checked /><span>Natural</span></label>
-                <label><input type="radio" name="strength" value="clear" /><span>Clear</span></label>
-                <label><input type="radio" name="strength" value="maximum" /><span>Max</span></label>
-              </div>
-            </fieldset>
+          <div class="control-block">
+            <div class="label-row"><span>Output size</span><small>AI 2× / 4×</small></div>
+            <div class="segmented">
+              <label><input type="radio" name="scale" value="2" checked /><span>2×</span></label>
+              <label><input type="radio" name="scale" value="4" /><span>4×</span></label>
+            </div>
+          </div>
 
-            <div class="inline-options">
-              <fieldset>
-                <div class="field-heading">
-                  <legend>ขยาย</legend>
-                </div>
-                <div class="segmented compact">
-                  <label><input type="radio" name="scale" value="2" checked /><span>2×</span></label>
-                  <label><input type="radio" name="scale" value="4" /><span>4×</span></label>
-                </div>
-              </fieldset>
+          <div class="control-block">
+            <div class="label-row"><span>Sharpness</span><small>สีไม่เปลี่ยน</small></div>
+            <div class="segmented three">
+              <label><input type="radio" name="strength" value="natural" checked /><span>Natural</span></label>
+              <label><input type="radio" name="strength" value="clear" /><span>Clear</span></label>
+              <label><input type="radio" name="strength" value="maximum" /><span>Max</span></label>
+            </div>
+          </div>
 
-              <fieldset>
-                <div class="field-heading">
-                  <legend>ไฟล์</legend>
-                </div>
-                <div class="segmented three compact">
-                  <label><input type="radio" name="format" value="jpg" checked /><span>JPG</span></label>
-                  <label><input type="radio" name="format" value="png" /><span>PNG</span></label>
-                  <label><input type="radio" name="format" value="webp" /><span>WebP</span></label>
-                </div>
-              </fieldset>
+          <div class="control-block">
+            <div class="label-row"><span>Download</span></div>
+            <div class="segmented three">
+              <label><input type="radio" name="format" value="jpg" checked /><span>JPG</span></label>
+              <label><input type="radio" name="format" value="png" /><span>PNG</span></label>
+              <label><input type="radio" name="format" value="webp" /><span>WebP</span></label>
             </div>
           </div>
 
           <button id="enhanceButton" class="primary-button" type="button" disabled>
-            <span class="button-spinner" aria-hidden="true"></span>
+            <span class="spinner" aria-hidden="true"></span>
             <span id="enhanceButtonLabel">Enhance</span>
           </button>
 
           <p class="truth-note">
-            AI อาจคาดเดารายละเอียดบางส่วน ต้นฉบับยังเป็น source of truth เสมอ
+            ระบบช่วยเพิ่มความละเอียดและ edge detail แต่ไม่สามารถกู้ข้อมูลที่หายจาก
+            motion blur หรือ out-of-focus รุนแรงได้ทั้งหมด
           </p>
         </aside>
 
-        <section class="preview-panel" aria-label="Image preview">
+        <section class="preview">
           <div id="emptyPreview" class="empty-preview">
-            <div class="empty-visual" aria-hidden="true">
-              <div class="empty-frame back"></div>
-              <div class="empty-frame front">
-                <svg viewBox="0 0 24 24">
-                  <path d="M4 6.75A1.75 1.75 0 0 1 5.75 5h12.5A1.75 1.75 0 0 1 20 6.75v10.5A1.75 1.75 0 0 1 18.25 19H5.75A1.75 1.75 0 0 1 4 17.25V6.75Z" />
-                  <path d="m6.5 16 3.2-3.6 2.4 2.35 2.15-2.35L17.5 16" />
-                  <circle cx="15.7" cy="8.7" r="1.35" />
-                </svg>
-              </div>
-            </div>
-            <div>
-              <strong>Preview จะอยู่ตรงนี้</strong>
-              <p>เลือกภาพด้านซ้ายเพื่อเริ่มต้น</p>
-            </div>
+            <div class="empty-visual"></div>
+            <strong>Before / After</strong>
+            <span>เลือกภาพเพื่อเริ่มต้น</span>
           </div>
 
           <div id="comparisonView" class="comparison-view hidden">
-            <div class="preview-toolbar">
-              <div class="preview-heading">
-                <div class="preview-title-row">
-                  <strong id="previewTitle">Before / After</strong>
-                  <span class="status-dot" aria-hidden="true"></span>
-                </div>
-                <span id="engineLabel"></span>
+            <div class="preview-header">
+              <div>
+                <strong id="engineLabel">Ready</strong>
+                <span id="resultDetails"></span>
               </div>
-              <div class="toolbar-actions">
-                <button id="resetButton" class="tertiary-button" type="button" disabled>Clear</button>
-                <button id="downloadButton" class="secondary-button" type="button" disabled>
-                  Download JPG
-                </button>
+              <button id="downloadButton" class="download-button" type="button" disabled>
+                Download
+              </button>
+            </div>
+
+            <div class="compare-toolbar" aria-label="Comparison controls">
+              <div class="zoom-group" role="group" aria-label="Zoom level">
+                <button class="compare-tool is-active" type="button" data-zoom="fit">Fit</button>
+                <button class="compare-tool" type="button" data-zoom="100">100%</button>
+                <button class="compare-tool" type="button" data-zoom="200">200%</button>
+              </div>
+              <div class="compare-actions">
+                <button id="centerViewButton" class="compare-tool" type="button">Center</button>
+                <button id="flickButton" class="compare-tool" type="button">Hold Before</button>
               </div>
             </div>
 
-            <div id="compareFrame" class="compare-frame">
-              <img id="beforeImage" alt="Original image" />
-              <div id="afterLayer" class="after-layer">
-                <img id="afterImage" alt="Enhanced image" />
+            <div id="compareFrame" class="compare-frame is-fit">
+              <div id="panCanvas" class="pan-canvas">
+                <img id="beforeImage" alt="Original image" draggable="false" />
+                <div id="afterLayer" class="after-layer">
+                  <img id="afterImage" alt="Enhanced image" draggable="false" />
+                </div>
               </div>
               <div id="compareHandle" class="compare-handle" aria-hidden="true"></div>
               <input
@@ -183,29 +151,40 @@
                 min="0"
                 max="100"
                 value="50"
-                aria-label="Compare before and after"
+                aria-label="Compare original and enhanced image"
               />
-              <span class="image-tag before-tag">Before</span>
-              <span class="image-tag after-tag">After</span>
+              <span class="tag tag-left">BEFORE</span>
+              <span class="tag tag-right">AFTER</span>
             </div>
 
-            <div class="result-meta">
-              <span id="originalDimensions" class="meta-chip"></span>
-              <span id="outputDimensions" class="meta-chip"></span>
+            <p id="compareHint" class="compare-hint">
+              Fit hides some pixel-level differences. Use 100% for a true 1:1 comparison.
+            </p>
+
+            <div class="result-strip">
+              <span id="originalDimensions"></span>
+              <span id="outputDimensions"></span>
             </div>
+
+            <details class="pixel-detail">
+              <summary>วิธีดูความต่างให้ชัด</summary>
+              <div class="pixel-copy">
+                ใช้ 100% เป็นหลัก แล้วลากภาพเพื่อดูจุดเดียวกันของ Before/After
+                หรือกด Hold Before ค้างไว้เพื่อ flick เปรียบเทียบภาพเดิมกับภาพที่ Enhance
+              </div>
+            </details>
           </div>
 
           <div id="statusBox" class="status-box hidden" role="status" aria-live="polite"></div>
         </section>
       </section>
-
-      <div class="micro-footer">
-        <span>ClearFrame AI · v0.1.3</span>
-        <span>Preserve color · No image history</span>
-      </div>
     </main>
 
-    <script type="module" src="/app.js?v=0.1.3"></script>
-    <script type="module" src="/inspector.js?v=0.1.3"></script>
+    <footer>
+      <span>ClearFrame AI · v0.1.5</span>
+      <span>Original remains the source of truth.</span>
+    </footer>
+
+    <script type="module" src="/app.js?v=0.1.5"></script>
   </body>
 </html>

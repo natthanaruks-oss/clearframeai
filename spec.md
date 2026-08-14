@@ -1,168 +1,54 @@
-# ClearFrame AI — Product & Technical Specification
+# ClearFrame AI — v0.1.5 Detail Compare Specification
 
-**Version:** 0.1.3
-**Status:** Build-ready MVP  
-**Product stance:** Truth-conscious image enhancement, not forensic reconstruction
+Status: Production candidate after smoke test.
 
-## 1. Problem
+## Objective
 
-ผู้ใช้มีภาพ Resolution ต่ำ ภาพแตก หรือรายละเอียดไม่ชัด และต้องการผลลัพธ์ที่ดูดีขึ้นโดยไม่ต้องใช้โปรแกรมแต่งภาพซับซ้อน
+Improve perceived and actual enlargement quality while continuing to use Cloudflare Images `upscale=generate` (ESRGAN).
 
-ข้อจำกัดสำคัญคือ AI ไม่สามารถกู้ “ข้อเท็จจริงที่หายไป” ได้ทั้งหมด และอาจคาดเดารายละเอียดขึ้นมา จึงต้องควบคุมการสื่อสารและไม่อ้างว่าภาพ Enhanced คือหลักฐานต้นฉบับ
+## Processing rules
 
-## 2. MVP Objective
+### AI master
+- Longest source side < 1200px: request a 4x AI master.
+- Otherwise: request a 2x AI master.
+- Apply Cloudflare output dimension/area caps.
+- Never upscale beyond the generated AI master.
 
-ให้ผู้ใช้ทำงานต่อไปนี้ได้ใน flow เดียว:
+### Final output
+- User may request 2x or 4x.
+- If the requested output is smaller than the AI master, perform a chained downsample.
+- Sharpen only after the resize/downsample step.
+- Natural = 0.0
+- Clear = 0.6
+- Maximum = 1.1
 
-`Upload → Select preset → Enhance → Compare → Download`
+### Color fidelity
+Do not automatically alter brightness, contrast or saturation.
 
-## 3. Target Users — Initial Hypotheses
+### Encoding
+- JPG quality 95
+- WebP quality 95
+- PNG without quality parameter
+- Do not use `compression=fast`
 
-1. ผู้ใช้ทั่วไปที่มีภาพเก่า ภาพจาก LINE หรือภาพ Resolution ต่ำ
-2. ทีม Sales / Marketing ที่ได้รับภาพหน้างานคุณภาพไม่สม่ำเสมอ
-3. SME / e-commerce ที่ต้องปรับภาพสินค้าอย่างรวดเร็ว
-4. ทีมเอกสารที่ต้องการให้ภาพเอกสารอ่านง่ายขึ้น แต่ไม่ใช้แทน OCR/ต้นฉบับ
+## Acceptance criteria
 
-## 4. Scope
+- Production health reports v0.1.4 and qualityPolicy `ai-master-then-downsample`.
+- Real production image responses include:
+  - `x-clearframe-ai-master`
+  - `x-clearframe-ai-factor`
+  - `x-clearframe-output`
+  - `x-clearframe-sharpen`
+  - `x-clearframe-quality-policy`
+- JPG, PNG and WebP outputs have correct file signatures.
+- No automatic color adjustment is present in Worker code.
+- Original remains source of truth.
 
-### In scope
+## v0.1.5 UI acceptance criteria
 
-- Single image
-- 2x / 4x AI upscale
-- Natural / Clear / Maximum
-- Auto / Photo / Face / Document preset
-- Browser preview
-- JPG / PNG / WebP download
-- No persistence
-- Mobile responsive PWA
-- API-token-only deployment
-
-### Out of scope
-
-- User account / OAuth
-- Cloud database
-- Payment
-- Image history
-- True motion deblur
-- Dedicated face restoration
-- OCR
-- Batch processing
-- Native mobile app
-- Forensic or legal evidence reconstruction
-
-## 5. Functional Requirements
-
-### FR-01 Upload
-
-- Accept JPEG, PNG, WebP, GIF and HEIC where supported by the runtime
-- Reject zero-byte and files over 20 MB
-- Display filename, size and dimensions
-
-### FR-02 Enhancement
-
-- Send image bytes as multipart form data
-- Apply Cloudflare Images AI upscaling
-- Apply conservative preset adjustments
-- Cap output at safe dimension and area limits
-- Return WebP result without storage
-
-### FR-03 Comparison
-
-- Show Before / After using an accessible range slider
-- Show original and output dimensions
-- Identify engine as AI or Local Preview
-
-### FR-04 Download
-
-- User selects JPG, PNG or WebP before enhancement
-- Download result with a non-destructive filename and correct MIME/extension
-- JPG uses an opaque white background for transparent input pixels
-- PNG and WebP preserve transparency where supported
-- Do not overwrite the original
-
-### FR-05 Failure Handling
-
-- Clearly label local fallback as “not AI”
-- Show actionable Thai error messages
-- Never claim enhancement succeeded when the server returned an error
-
-## 6. Non-Functional Requirements
-
-- Privacy: No image persistence or analytics payload containing image bytes
-- Security: File validation, no secrets in browser, `nosniff`, no-store response
-- Traceability: Response headers identify engine, preset and dimensions
-- Performance: Single request and streamed response
-- Portability: Plain Worker + static assets; no framework lock-in
-- Accessibility: Keyboard upload and labeled comparison slider
-
-## 7. Processing Policy
-
-### Natural
-
-Default mode. Preserve tone and minimize edge halos.
-
-### Clear
-
-Moderate sharpening and contrast for social / marketing use.
-
-### Maximum
-
-Stronger enhancement. Must remain opt-in due to higher artifact risk.
-
-### Face
-
-Avoid aggressive edge sharpening. Does not promise identity restoration.
-
-### Document
-
-Increase contrast and edge definition. Does not change or infer document text intentionally.
-
-## 8. Governance
-
-- Original is always the source of truth.
-- UI must show an AI detail warning.
-- Do not market as forensic enhancement.
-- Do not use generated text or reconstructed faces as authoritative evidence.
-- Future model changes require benchmark results and documented acceptance criteria.
-
-## 9. Quality Benchmark — Next Gate
-
-Prepare a controlled set of at least:
-
-- 10 low-resolution photos
-- 10 face images
-- 10 document images
-- 5 motion-blur images as known limitations
-- 5 heavy-compression images
-
-Score:
-
-- Perceived clarity
-- Identity preservation
-- Text preservation
-- Artifact / halo level
-- Processing failure
-- Output size and latency
-
-No commercial launch until the benchmark identifies which use cases are acceptable and which must be blocked or warned.
-
-## 10. Definition of Done
-
-See README checklist. Production status requires deployment evidence and test outputs from the user's own Cloudflare account.
-
-
-## 11. v0.1.2 Quality Policy
-
-- No automatic Contrast, Saturation, Brightness or Gamma changes.
-- Natural applies no secondary sharpen beyond ESRGAN.
-- Clear and Maximum apply conservative edge sharpening only.
-- Pixel Detail displays the original browser-upscaled to the AI output dimensions, enabling a like-for-like inspection at 100% or 200%.
-
-
-## 12. v0.1.3 UX Policy
-
-- Keep one primary action: Enhance.
-- Preview has visual priority over controls.
-- Advanced inspection stays collapsed until requested.
-- Avoid oversized hero content, promotional cards and redundant copy inside the working screen.
-- Preserve all v0.1.2 enhancement and color-fidelity behavior.
+- Engine logic remains the v0.1.4 Cloudflare ESRGAN quality pipeline.
+- Comparison toolbar includes Fit / 100% / 200%.
+- Before and After images share the same pan transform.
+- 100% displays output pixels without fit-to-screen scaling.
+- Hold Before temporarily hides the enhanced layer for flick comparison.
+- Center resets synchronized pan.

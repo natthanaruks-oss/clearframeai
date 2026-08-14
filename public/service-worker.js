@@ -1,9 +1,8 @@
-const CACHE_NAME = "clearframe-shell-v0.1.3";
+const CACHE_NAME = "clearframe-shell-v0.1.5";
 const SHELL = [
   "/",
-  "/styles.css?v=0.1.3",
-  "/app.js?v=0.1.3",
-  "/inspector.js?v=0.1.3",
+  "/styles.css?v=0.1.5",
+  "/app.js?v=0.1.5",
   "/icon.svg",
   "/manifest.webmanifest",
 ];
@@ -26,23 +25,7 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
-
   if (event.request.method !== "GET" || url.pathname.startsWith("/api/")) return;
-
-  if (event.request.mode === "navigate") {
-    event.respondWith(
-      fetch(event.request)
-        .then((response) => {
-          if (response.ok) {
-            const copy = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put("/", copy));
-          }
-          return response;
-        })
-        .catch(() => caches.match("/")),
-    );
-    return;
-  }
 
   event.respondWith(
     caches.match(event.request).then(

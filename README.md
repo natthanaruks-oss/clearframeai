@@ -1,147 +1,51 @@
-# ClearFrame AI — MVP v0.1.3
+# ClearFrame AI v0.1.5 — Detail Compare
 
-Web/PWA สำหรับเพิ่ม Resolution และความคมชัดของภาพ โดยออกแบบตามหลัก:
+Scope remains intentionally narrow: make images clearer with Cloudflare Images ESRGAN only.
 
-- No OAuth / no `wrangler login`
-- Deploy ด้วย `CLOUDFLARE_API_TOKEN` และ `CLOUDFLARE_ACCOUNT_ID`
-- ไม่ฝัง API key หรือ token ใน source code / Git
-- ไม่สร้างบัญชีผู้ใช้หรือ Cloud database
-- ไม่เก็บไฟล์ภาพถาวรใน MVP
-- แสดงคำเตือนเรื่อง AI-generated details ชัดเจน
+## Quality-first pipeline
 
-## สิ่งที่ทำงานแล้ว
+1. Read source dimensions.
+2. Build an AI master:
+   - source longest side < 1200px → request 4x ESRGAN master
+   - otherwise → request 2x ESRGAN master
+3. Never enlarge beyond the AI master.
+4. If requested output is smaller than the AI master, downsample after the AI pass.
+5. Apply conservative sharpen only after downsampling.
+6. Preserve color: no automatic brightness, contrast or saturation changes.
+7. Output quality:
+   - JPG 95
+   - WebP 95
+   - PNG without explicit quality (avoid PNG8 palette conversion)
+8. No `compression=fast`.
 
-1. Upload / drag-and-drop ภาพ
-2. รองรับ Auto, Photo, Face และ Document presets
-3. AI Upscale 2x หรือ 4x ผ่าน Cloudflare Images `upscale: "generate"` (ESRGAN)
-4. Controlled sharpen / contrast / saturation
-5. Before–After slider
-6. เลือก Download เป็น JPG, PNG หรือ WebP
-7. Local browser fallback สำหรับทดสอบ UX เมื่อ Images binding ยังไม่พร้อม
-8. PWA shell และ responsive mobile layout
-9. `/api/health` และ `/api/enhance`
-10. Input validation สูงสุด 20 MB
-11. Reset flow และแสดงขนาดไฟล์ผลลัพธ์
+## Limits
 
-> หมายเหตุ: Face mode ใน v0.1 เป็นการตั้งค่าที่ลด over-sharpen สำหรับใบหน้า ยังไม่ใช่ dedicated face-restoration model เช่น GFPGAN/CodeFormer
+This is still ESRGAN upscaling, not a true motion-deblur or refocus model. Severe motion blur, out-of-focus content, or missing text may not be recoverable.
 
-## Run in Codespaces
+## Deployment rule
 
-```bash
-cd /workspaces
-unzip clearframe-ai-v0.1.zip
-cd clearframe-ai-v0.1
-npm install
-npm test
-npm run dev
-```
+Cloudflare API token + account ID only. No `wrangler login`, OAuth, browser approval, Cloudflare Dashboard setup or Cloudflare Access.
 
-การทดสอบ AI Upscale จริงต้องใช้ Cloudflare remote runtime:
+## Production verification
 
-```bash
-export CLOUDFLARE_API_TOKEN="..."
-export CLOUDFLARE_ACCOUNT_ID="..."
-npm run dev:remote
-```
+The patch installer verifies:
+- local syntax/tests
+- Wrangler dry-run
+- active Cloudflare API token
+- production health version 0.1.4
+- JPG/PNG/WebP signatures
+- AI master and quality-policy response headers
+- production version remains correct after smoke tests
 
-ห้ามใช้ `wrangler login`
+## v0.1.5 Detail Compare
 
-## Deploy
+Image engine is unchanged from v0.1.4.
 
-```bash
-chmod +x deploy-codespace.sh
-./deploy-codespace.sh
-```
-
-หรือ:
-
-```bash
-export CLOUDFLARE_API_TOKEN="..."
-export CLOUDFLARE_ACCOUNT_ID="..."
-npm install
-npm test
-npx wrangler deploy
-```
-
-## Cloudflare permission
-
-Token ต้องมีสิทธิ์อย่างน้อยที่จำเป็นสำหรับการ Deploy Worker ใน Account เป้าหมาย  
-Images binding ถูกประกาศใน `wrangler.jsonc` จึงไม่ต้องสร้าง binding ผ่าน Dashboard
-
-## API
-
-### Health
-
-```bash
-curl https://<worker>.<subdomain>.workers.dev/api/health
-```
-
-### Enhance
-
-```bash
-curl -X POST \
-  -F "image=@sample.jpg" \
-  -F "mode=photo" \
-  -F "scale=2" \
-  -F "strength=natural" \
-  -F "format=jpg" \
-  https://<worker>.<subdomain>.workers.dev/api/enhance \
-  --output enhanced.jpg
-```
-
-## Current technical basis
-
-Cloudflare Images documentation (checked 6 Aug 2026):
-
-- Images binding accepts raw request bytes and supports chained transformations.
-- `.input()` maximum is 20 MB.
-- `upscale=generate` uses ESRGAN and supports an AI pass at 2x or 4x.
-- Images Free includes up to 5,000 unique transformations per month; verify current pricing before commercial launch.
-
-Official references:
-
-- https://developers.cloudflare.com/images/optimization/binding/
-- https://developers.cloudflare.com/images/optimization/features/
-- https://developers.cloudflare.com/images/get-started/limits/
-- https://developers.cloudflare.com/images/pricing/
-
-## Definition of Done — MVP v0.1
-
-- [x] User can upload a valid image.
-- [x] App shows original dimensions.
-- [x] Server validates type and size.
-- [x] Production endpoint requests AI 2x/4x upscaling.
-- [x] Result can be compared and downloaded.
-- [x] No image persistence is implemented.
-- [x] Local fallback is explicitly labeled as non-AI.
-- [x] Code can deploy via API token without OAuth.
-- [ ] Production deployment verified on the user's Cloudflare account.
-- [ ] AI output quality benchmarked against a controlled test set.
-
-## v0.1.1 Output Format Policy
-
-- JPG: ค่าเริ่มต้น เหมาะกับภาพถ่ายทั่วไป และเติมพื้นหลังสีขาวเมื่อภาพต้นฉบับมี transparency
-- PNG: เหมาะกับภาพที่ต้องการ lossless output หรือคง transparency
-- WebP: เหมาะกับการใช้งานบนเว็บและไฟล์ขนาดเล็ก
-- เมื่อเปลี่ยน Mode, Scale, Strength หรือ Format หลัง Enhance ระบบจะบังคับให้ประมวลผลใหม่ เพื่อไม่ให้ Download ผลลัพธ์คนละค่ากับหน้าจอ
-
-
-## v0.1.2 — Color Fidelity & Pixel Detail
-
-- Removes automatic contrast and saturation adjustments.
-- Uses conservative sharpening presets: Natural 0, Clear 0.8, Maximum 1.6.
-- Raises JPEG/WebP output quality to 96.
-- Adds synchronized Before/After Pixel Detail at 100% and 200%.
-- Adds `x-clearframe-color-policy: preserve`.
-
-
-## v0.1.3 — Clean Studio UI
-
-UI-only refinement. The enhancement engine and color-fidelity policy are unchanged.
-
-- Compact 322 px control rail and larger preview area
-- Reduced hero/header height and removed marketing cards
-- Simplified upload, preset, scale and output controls
-- Visible busy state without adding dependencies
-- Pixel Detail is collapsed by default and opens only on demand
-- Mobile layout remains single-column and touch-friendly
+Comparison UX:
+- Fit for composition
+- 100% for true 1:1 pixel review
+- 200% for edge/halo inspection
+- synchronized pan because Before/After share the same transform
+- Center reset
+- Hold Before flick comparison
+- slider remains available
